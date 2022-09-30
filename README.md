@@ -1,3 +1,5 @@
+**NOTE: This is a slightly improved fork of [ekisu/mpv-webm](https://github.com/ekisu/mpv-webm).**
+
 # mpv-webm
 Simple WebM maker for [mpv][mpv], with no external dependencies.
 
