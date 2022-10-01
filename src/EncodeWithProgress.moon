@@ -1,10 +1,14 @@
 -- Not really a Page, but reusing its functions is pretty useful
 class EncodeWithProgress extends Page
-	new: (startTime, endTime) =>
+	new: (startTime, endTime, attempt, crf, lastSize, target) =>
 		@startTime = startTime
 		@endTime = endTime
 		@duration = endTime - startTime
 		@currentTime = startTime
+		@attempt = attempt
+		@crf = crf
+		@lastSize = lastSize
+		@target = target
 
 	draw: =>
 		progress = 100 * ((@currentTime - @startTime) / @duration)
@@ -13,7 +17,12 @@ class EncodeWithProgress extends Page
 		ass = assdraw.ass_new()
 		ass\new_event()
 		self\setup_text(ass)
-		ass\append("Encoding (#{bold(progressText)})\\N")
+		if @attempt > 0
+			ass\append("Encoding (#{bold(progressText)})\\NAttempt: #{@attempt}\\NCRF: #{@crf}\\NLast Size: #{@lastSize}\\NTrgt Size: #{@target}\\NRatio: #{@lastSize / @target}")
+		elseif crf >= 0
+			ass\append("Encoding (#{bold(progressText)})\\NCRF: #{@crf}")
+		else
+			ass\append("Encoding (#{bold(progressText)})\\N")
 		mp.set_osd_ass(window_w, window_h, ass.text)
 
 	parseLine: (line) =>

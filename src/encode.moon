@@ -245,7 +245,7 @@ find_path = (startTime, endTime) ->
 
 	return path, is_stream, is_temporary, startTime, endTime
 
-encode = (region, startTime, endTime) ->
+encode = (region, startTime, endTime, attempt, overrideCrf, lastSize, target) ->
 	format = formats[options.output_format]
 
 	originalStartTime = startTime
@@ -328,16 +328,27 @@ encode = (region, startTime, endTime) ->
 	for token in string.gmatch(options.additional_flags, "[^%s]+") do
 		command[#command + 1] = token
 
+	-- override CRF
+	crf = options.crf
+	if crf >= 0 and overrideCrf and overrideCrf >= 0
+    	crf = overrideCrf
+
 	if not options.strict_filesize_constraint
 		for token in string.gmatch(options.non_strict_additional_flags, "[^%s]+") do
 			command[#command + 1] = token
 		
-		-- Also add CRF here, as it used to be a part of the non-strict flags.
-		-- This might change in the future, I don't know.
-		if options.crf >= 0
+		if crf >= 0
 			append(command, {
-				"--ovcopts-add=crf=#{options.crf}"
+				"--ovcopts-add=crf=#{crf}",
+				"--ovcopts-add=qmin=#{crf-2}",
+				"--ovcopts-add=qmax=#{crf+2}"
 			})
+	else
+		crf = -1
+		append(command, {
+			"--ovcopts-add=qmin=10",
+			"--ovcopts-add=qmax=50"
+		})
 
 	dir = ""
 	if is_stream
@@ -362,7 +373,12 @@ encode = (region, startTime, endTime) ->
 		append(first_pass_cmdline, {
 			"--ovcopts-add=flags=+pass1"
 		})
-		message("Starting first pass...")
+		if attempt > 0
+			message("Starting first pass...\\NAttempt: #{attempt}\\NCRF: #{crf}\\NLast Size: #{lastSize}\\NTrgt Size: #{target}\\NRatio: #{lastSize / target}")
+		elseif crf >= 0
+			message("Starting first pass...\\NCRF: #{crf}")
+		else
+			message("Starting first pass...")
 		msg.verbose("First-pass command line: ", table.concat(first_pass_cmdline, " "))
 		res = run_subprocess({args: first_pass_cmdline, cancellable: false})
 		if not res
@@ -395,10 +411,10 @@ encode = (region, startTime, endTime) ->
 			message("Started encode...")
 			res = run_subprocess({args: command, cancellable: false})
 		else
-			ewp = EncodeWithProgress(startTime, endTime)
+			ewp = EncodeWithProgress(startTime, endTime, attempt, crf, lastSize, target)
 			res = ewp\startEncode(command)
 		if res
-			message("Encoded successfully! Saved to\\N#{bold(out_path)}")
+			message("Encoded successfully! Saved to\\N#{bold(out_path)}\\NCRF: #{crf}")
 			emit_event("encode-finished", "success")
 		else
 			message("Encode failed! Check the logs for details.")
@@ -409,3 +425,73 @@ encode = (region, startTime, endTime) ->
 		os.remove(get_pass_logfile_path(out_path))
 		if is_temporary
 			os.remove(path)
+		
+		return res
+
+encodeWithTarget = (region, startTime, endTime) ->
+	attempt = 1
+	format = formats[options.output_format]
+	crf = options.crf
+
+	if options.multiple_attempts and not options.strict_filesize_constraint and format.acceptsBitrate and options.target_filesize > 0 and crf >= 0
+		originalStartTime = startTime
+		originalEndTime = endTime
+		path, is_stream, is_temporary, startTime, endTime = find_path(startTime, endTime) 
+
+		dir = ""
+		if is_stream
+			dir = parse_directory("~")
+		else
+			dir, _ = utils.split_path(path)
+
+		if options.output_directory != ""
+			dir = parse_directory(options.output_directory)
+
+		formatted_filename = format_filename(originalStartTime, originalEndTime, format)
+		out_path = utils.join_path(dir, formatted_filename)
+		target = options.target_filesize * 1024 * 1024 / 1000
+		lastSize = 0
+		lastCrf = crf - 1
+		res = false
+
+		while attempt <= 63
+			res = encode(region, startTime, endTime, attempt, crf, lastSize, target)
+
+			if res and crf < 63
+				file = assert(io.open(out_path, "r"))
+				size = file\seek("end")
+				file\close!
+				if size <= target
+					return res
+
+				delta = 1
+
+				if lastSize > 0
+					-- Try to do a little logarithmic math here to guess how many CRF steps to jump
+					-- This is just a start, doesn't work well in all cases, can definitely be improved
+					expansionFactor = math.min(math.log(crf - lastCrf + 2), 2)
+					delta = math.max(math.floor(((size - target) / ((lastSize - size) / ((crf - lastCrf) * expansionFactor))) + 0.5), 1)
+				else
+					ratio = size / target
+
+					if options.abort_factor > 1 and ratio >= options.abort_factor
+						message("Aborted!\\NFilesize: #{size}\\NTarget: #{target}\\NRatio: #{ratio}\\NSaved to\\N#{bold(out_path)}")
+						return res
+
+					-- If ratio <= 1.1 then just use delta of 1
+					-- Otherwise do a little approximation with a logarithmic regression
+					-- This is just a start, doesn't work well in all cases, can definitely be improved
+					if ratio > 1.1
+						scale = 1.3161 + 0.3434 * math.log(ratio)
+						exponent = 1.0058 + 0.4148 * math.log(ratio)
+						delta = math.max(math.floor((crf*scale) - ((crf*scale) / math.pow(ratio, exponent)) + 0.5), 1)
+
+				lastCrf = crf
+				crf = math.min(crf + delta, 63)
+				lastSize = size
+			else
+				return res
+			attempt = attempt + 1
+		return res
+	else
+		return encode(region, startTime, endTime, 0)

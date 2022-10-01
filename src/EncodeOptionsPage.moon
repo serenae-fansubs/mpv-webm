@@ -148,6 +148,12 @@ class EncodeOptionsPage extends Page
 			min: -1
 			altDisplayNames:
 				[-1]: "disabled"
+	
+		abortFactorOpts =
+			step: 1
+			min: 1
+			altDisplayNames:
+				[1]: "disabled"
 
 		fpsOpts =
 			possibleValues: {{-1, "source"}, {15}, {24}, {30}, {48}, {50}, {60}, {120}, {240}}
@@ -173,6 +179,8 @@ class EncodeOptionsPage extends Page
 			{"write_filename_on_metadata", Option("bool", "Write Filename on Metadata", options.write_filename_on_metadata)},
 			{"target_filesize", Option("int", "Target Filesize", options.target_filesize, filesizeOpts)},
 			{"crf", Option("int", "CRF", options.crf, crfOpts)},
+			{"multiple_attempts", Option("bool", "Multiple Attempts", options.multiple_attempts)},
+			{"abort_factor", Option("int", "Abort Factor", options.abort_factor, abortFactorOpts)},
 			{"fps", Option("list", "FPS", options.fps, fpsOpts)},
 			{"gif_dither", Option("list", "GIF Dither Type", options.gif_dither, gifDitherOpts, -> @options[1][2]\getValue! == "gif")},
 			{"force_square_pixels", Option("bool", "Force Square Pixels", options.force_square_pixels)},

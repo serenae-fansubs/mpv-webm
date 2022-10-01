@@ -96,4 +96,4 @@ class MainPage extends Page
 		if @startTime >= @endTime
 			message("Start time is ahead of end time, aborting")
 			return
-		encode(@region, @startTime, @endTime)
+		encodeWithTarget(@region, @startTime, @endTime)
