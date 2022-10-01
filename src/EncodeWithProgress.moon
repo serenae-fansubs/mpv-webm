@@ -19,7 +19,7 @@ class EncodeWithProgress extends Page
 		self\setup_text(ass)
 		if @attempt > 0
 			ass\append("Encoding (#{bold(progressText)})\\NAttempt: #{@attempt}\\NCRF: #{@crf}\\NLast Size: #{@lastSize}\\NTrgt Size: #{@target}\\NRatio: #{@lastSize / @target}")
-		elseif crf >= 0
+		elseif @crf >= 0
 			ass\append("Encoding (#{bold(progressText)})\\NCRF: #{@crf}")
 		else
 			ass\append("Encoding (#{bold(progressText)})\\N")
