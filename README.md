@@ -1,5 +1,9 @@
 **NOTE: This is a slightly improved fork of [ekisu/mpv-webm](https://github.com/ekisu/mpv-webm).**
 
+Tweaked defaults and added better support for VP9.
+
+Also added a feature where the encoder can automatically try over and over again to reach your target filesize.
+
 # mpv-webm
 Simple WebM maker for [mpv][mpv], with no external dependencies.
 
