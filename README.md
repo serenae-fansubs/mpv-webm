@@ -27,8 +27,8 @@ You can configure the script's defaults by either changing the `options` at the 
 ## Building (development)
 Building requires [`moonc`, the MoonScript compiler][moonscript], added to the PATH, and a GNUMake compatible make. Run `make` on the root directory. The output files will be placed under the `build` directory.
 
-[build]: https://github.com/ekisu/mpv-webm/releases/download/latest/webm.lua
+[build]: https://github.com/serenae-fansubs/mpv-webm/releases/download/latest/webm.lua
 [file locations]: https://mpv.io/manual/master/#files
-[conf]: https://github.com/ekisu/mpv-webm/releases/download/latest/webm.conf
+[conf]: https://github.com/serenae-fansubs/mpv-webm/releases/download/latest/webm.conf
 [mpv]: http://mpv.io
 [moonscript]: http://moonscript.org
