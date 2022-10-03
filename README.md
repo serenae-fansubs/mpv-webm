@@ -1,8 +1,15 @@
 **NOTE: This is a slightly improved fork of [ekisu/mpv-webm](https://github.com/ekisu/mpv-webm).**
 
-Tweaked defaults and added better support for VP9.
-
-Also added a feature where the encoder can automatically try over and over again to reach your target filesize.
+Improvements:
+ * Tweaked defaults and added better support for VP9.
+ * New "Multiple Attempts" feature:
+   * The encoder can automatically try over and over again with successively higher CRF values until it reaches your target filesize.
+   * Abort Factor (default: 4) will cancel multiple attempts if the output filesize is more than 4x the target.
+   * Allows you to easily create webms that adhere to a maximum filesize (e.g. 3 MB) but without needing to use the "strict mode" encoding.
+ * New "Snap to edges" feature for crop page:
+   * Press "s" to automatically snap the crop selection to the edges, if the current point is close.
+ * New "Fine-shifting" feature for Scale Height on options page:
+   * Hold Ctrl while pressing Left or Right to shift the Scale Height by 1 instead of being constrained by the default options list.
 
 # mpv-webm
 Simple WebM maker for [mpv][mpv], with no external dependencies.
