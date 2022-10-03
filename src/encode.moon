@@ -470,7 +470,7 @@ encodeWithTarget = (region, startTime, endTime) ->
 				if lastSize > 0
 					-- Try to do a little logarithmic math here to guess how many CRF steps to jump
 					-- This is just a start, doesn't work well in all cases, can definitely be improved
-					expansionFactor = math.min(math.log(crf - lastCrf + 2), 2)
+					expansionFactor = math.min(math.log(crf - lastCrf + 2), 1.7)
 					delta = math.max(math.floor(((size - target) / ((lastSize - size) / ((crf - lastCrf) * expansionFactor))) + 0.5), 1)
 				else
 					ratio = size / target
