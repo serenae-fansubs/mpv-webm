@@ -5,6 +5,7 @@ class CropPage extends Page
 		@keybinds =
 			"1": self\setPointA
 			"2": self\setPointB
+			"s": self\snap
 			"r": self\reset
 			"ESC": self\cancel
 			"ENTER": self\finish
@@ -37,6 +38,25 @@ class CropPage extends Page
 	setPointB: =>
 		posX, posY = mp.get_mouse_pos()
 		@pointB\set_from_screen(posX, posY)
+		if @visible
+			self\draw!
+	
+	snap: =>
+		dimensions = get_video_dimensions!
+		{x: xa, y: ya} = dimensions.top_left
+		sa = @pointA\to_screen!
+		if math.abs(sa.x - xa) < 25
+			sa.x = xa
+		if math.abs(sa.y - ya) < 25
+			sa.y = ya
+		@pointA\set_from_screen(sa.x, sa.y)
+		{x: xb, y: yb} = dimensions.bottom_right
+		sb = @pointB\to_screen!
+		if math.abs(sb.x - xb) < 25
+			sb.x = xb
+		if math.abs(sb.y - yb) < 25
+			sb.y = yb
+		@pointB\set_from_screen(sb.x, sb.y)
 		if @visible
 			self\draw!
 
@@ -80,6 +100,7 @@ class CropPage extends Page
 		ass\append("#{bold('Crop:')}\\N")
 		ass\append("#{bold('1:')} change point A (#{@pointA.x}, #{@pointA.y})\\N")
 		ass\append("#{bold('2:')} change point B (#{@pointB.x}, #{@pointB.y})\\N")
+		ass\append("#{bold('s:')} snap to edges\\N")
 		ass\append("#{bold('r:')} reset to whole screen\\N")
 		ass\append("#{bold('ESC:')} cancel crop\\N")
 		width, height = math.abs(@pointA.x - @pointB.x), math.abs(@pointA.y - @pointB.y)
