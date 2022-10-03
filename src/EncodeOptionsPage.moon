@@ -53,22 +53,55 @@ class Option
 			when "bool"
 				@value = not @value
 			when "int"
-				@value -= @opts.step
-				if @opts.min and @opts.min > @value
-					@value = @opts.min
+				if @opts.anchors
+					selectedAnchor = @opts.anchors[1]
+					for i, anchor in ipairs @opts.anchors
+						if @value != nil and anchor < @value
+							selectedAnchor = anchor
+						else
+							break
+					@value = selectedAnchor
+				else
+					@value -= @opts.step
+					if @opts.min and @opts.min > @value
+						@value = @opts.min
 			when "list"
 				@value -= 1 if @value > 1
+
+	ctrlLeftKey: =>
+		if @optType == "int" and @opts.anchors
+			@value -= @opts.step
+			if @opts.min and @opts.min > @value
+				@value = @opts.min
+		else
+			self\leftKey!
 
 	rightKey: =>
 		switch @optType
 			when "bool"
 				@value = not @value
 			when "int"
-				@value += @opts.step
-				if @opts.max and @opts.max < @value
-					@value = @opts.max
+				if @opts.anchors
+					selectedAnchor = @opts.anchors[1]
+					for i, anchor in ipairs @opts.anchors
+						selectedAnchor = anchor
+						if @value != nil and anchor > @value
+							break
+					@value = selectedAnchor
+				else
+					@value += @opts.step
+					if @opts.max and @opts.max < @value
+						@value = @opts.max
 			when "list"
 				@value += 1 if @value < #@opts.possibleValues
+
+	ctrlRightKey: =>
+		if @optType == "int" and @opts.anchors
+			@value += @opts.step
+			if @opts.max and @opts.max < @value
+				@value = @opts.max
+		else
+			self\rightKey!
 
 	getValue: =>
 		switch @optType
@@ -136,7 +169,12 @@ class EncodeOptionsPage extends Page
 		@currentOption = 1
 		-- TODO this shouldn't be here.
 		scaleHeightOpts =
-			possibleValues: {{-1, "no"}, {144}, {240}, {360}, {480}, {540}, {720}, {1080}, {1440}, {2160}}
+			step: 1
+			min: -1
+			altDisplayNames:
+				[-1]: "no"
+			anchors: {-1, 144, 240, 360, 480, 540, 720, 1080, 1440, 2160}
+
 		filesizeOpts =
 			step: 250
 			min: 0
@@ -174,7 +212,7 @@ class EncodeOptionsPage extends Page
 			{"output_format", Option("list", "Output Format", options.output_format, formatOpts)}
 			{"twopass", Option("bool", "Two Pass", options.twopass)},
 			{"apply_current_filters", Option("bool", "Apply Current Video Filters", options.apply_current_filters)}
-			{"scale_height", Option("list", "Scale Height", options.scale_height, scaleHeightOpts)},
+			{"scale_height", Option("int", "Scale Height (Ctrl to shift by 1)", options.scale_height, scaleHeightOpts)},
 			{"strict_filesize_constraint", Option("bool", "Strict Filesize Constraint", options.strict_filesize_constraint)},
 			{"write_filename_on_metadata", Option("bool", "Write Filename on Metadata", options.write_filename_on_metadata)},
 			{"target_filesize", Option("int", "Target Filesize", options.target_filesize, filesizeOpts)},
@@ -188,7 +226,9 @@ class EncodeOptionsPage extends Page
 
 		@keybinds =
 			"LEFT": self\leftKey
+			"Ctrl+LEFT": self\ctrlLeftKey
 			"RIGHT": self\rightKey
+			"Ctrl+RIGHT": self\ctrlRightKey
 			"UP": self\prevOpt
 			"DOWN": self\nextOpt
 			"ENTER": self\confirmOpts
@@ -201,8 +241,16 @@ class EncodeOptionsPage extends Page
 		(self\getCurrentOption!)\leftKey!
 		self\draw!
 
+	ctrlLeftKey: =>
+		(self\getCurrentOption!)\ctrlLeftKey!
+		self\draw!
+
 	rightKey: =>
 		(self\getCurrentOption!)\rightKey!
+		self\draw!
+
+	ctrlRightKey: =>
+		(self\getCurrentOption!)\ctrlRightKey!
 		self\draw!
 
 	prevOpt: =>
