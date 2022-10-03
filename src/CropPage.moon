@@ -45,16 +45,16 @@ class CropPage extends Page
 		dimensions = get_video_dimensions!
 		{x: xa, y: ya} = dimensions.top_left
 		sa = @pointA\to_screen!
-		if math.abs(sa.x - xa) < 25
+		if math.abs(sa.x - xa) < 50
 			sa.x = xa
-		if math.abs(sa.y - ya) < 25
+		if math.abs(sa.y - ya) < 50
 			sa.y = ya
 		@pointA\set_from_screen(sa.x, sa.y)
 		{x: xb, y: yb} = dimensions.bottom_right
 		sb = @pointB\to_screen!
-		if math.abs(sb.x - xb) < 25
+		if math.abs(sb.x - xb) < 50
 			sb.x = xb
-		if math.abs(sb.y - yb) < 25
+		if math.abs(sb.y - yb) < 50
 			sb.y = yb
 		@pointB\set_from_screen(sb.x, sb.y)
 		if @visible
