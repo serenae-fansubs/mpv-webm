@@ -87,9 +87,9 @@ get_fps_filters = ->
 	return {}
 
 get_contrast_brightness_and_saturation_filters = ->
-	mpv_brightness = mp.get_property("brightness")
-	mpv_contrast = mp.get_property("contrast")
-	mpv_saturation = mp.get_property("saturation")
+	mpv_brightness = mp.get_property_number("brightness", 0)
+	mpv_contrast = mp.get_property_number("contrast", 0)
+	mpv_saturation = mp.get_property_number("saturation", 0)
 
 	if mpv_brightness == 0 and mpv_contrast == 0 and mpv_saturation == 0
 		-- Default values, no need to change anything.
@@ -210,7 +210,8 @@ get_video_filters = (format, region) ->
 
 	append(filters, get_scale_filters!)
 	append(filters, get_fps_filters!)
-	append(filters, get_contrast_brightness_and_saturation_filters!)
+	if options.apply_current_filters
+		append(filters, get_contrast_brightness_and_saturation_filters!)
 
 	append(filters, format\getPostFilters!)
 
@@ -341,9 +342,10 @@ encode = (region, startTime, endTime, attempt, overrideCrf, lastSize, target) ->
 			
 			if options.strict_filesize_constraint
 				type = format.videoCodec != "" and "ovc" or "oac"
+				strict_bitrate = format.videoCodec != "" and video_bitrate or audio_bitrate
 				append(command, {
-					"--#{type}opts-add=minrate=#{bitrate}k",
-					"--#{type}opts-add=maxrate=#{bitrate}k",
+					"--#{type}opts-add=minrate=#{strict_bitrate}k",
+					"--#{type}opts-add=maxrate=#{strict_bitrate}k",
 				})
 		else
 			type = format.videoCodec != "" and "ovc" or "oac"
@@ -396,7 +398,10 @@ encode = (region, startTime, endTime, attempt, overrideCrf, lastSize, target) ->
 
 	-- Do the first pass now, as it won't require the output path. I don't think this works on streams.
 	-- Also this will ignore run_detached, at least for the first pass.
-	if options.twopass and format.supportsTwopass and not is_stream
+	-- The current x264/x265 settings cannot use a second pass in constant-quality mode.
+	-- Other encoders, including libvpx and libaom, can still use two passes.
+	constant_quality_x26x = options.target_filesize <= 0 and (format.videoCodec == "libx264" or format.videoCodec == "libx265")
+	if options.twopass and format.supportsTwopass and not constant_quality_x26x and not is_stream
 		-- copy the commandline
 		first_pass_cmdline = [arg for arg in *command]
 		append(first_pass_cmdline, {
