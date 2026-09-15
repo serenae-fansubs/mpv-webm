@@ -572,7 +572,7 @@ encodeWithTarget = (region, startTime, endTime, onDone) ->
 				file\close!
 				if size <= target
 					if onDone
-				  	onDone(true, out_path)
+						onDone(true, out_path)
 					return res
 
 				delta = 1
