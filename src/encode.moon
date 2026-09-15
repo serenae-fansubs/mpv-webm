@@ -182,6 +182,46 @@ get_metadata_flags = ->
 	title = mp.get_property("filename/no-ext")
 	return {"--oset-metadata=title=%#{string.len(title)}%#{title}"}
 
+-- Wrap a filter parameter in mpv's raw string syntax so property expansion
+-- can't interpret anything inside it.
+quote_filter_param = (value) ->
+	"%#{string.len(value)}%#{value}"
+
+-- mpv exposes libavfilter bridge filters as "lavfi-<name>" and reports their
+-- arguments as positional placeholders (@0, @1, ...) or as regular option
+-- names. The placeholder form is only understood by mpv's own option parser,
+-- so turn it into a libavfilter-style argument list. Values are left unquoted
+-- because the GIF format embeds these filters in a raw graph, where mpv's
+-- property expansion (and with it the %N% raw string syntax) does not run.
+serialize_lavfi_filter = (filter) ->
+	name = filter["name"]
+	params = filter["params"] or {}
+
+	if name == "lavfi"
+		graph = params["graph"]
+		return graph and "#{name}=[#{graph}]" or name
+
+	positional = {}
+	named = {}
+	for key, value in pairs params
+		index = key\match("^@(%d+)$")
+		if index
+			positional[tonumber(index) + 1] = value
+		else
+			named[key] = value
+
+	args = {}
+	if #positional > 0
+		for value in *positional
+			append(args, {value})
+	else
+		keys = [key for key in pairs named]
+		table.sort(keys)
+		for key in *keys
+			append(args, {"#{key}=#{named[key]}"})
+
+	return #args > 0 and "#{name}=#{table.concat(args, ":")}" or name
+
 apply_current_filters = (filters) ->
 	vf = mp.get_property_native("vf")
 	msg.verbose("apply_current_filters: got #{#vf} currently applied.")
@@ -194,8 +234,11 @@ apply_current_filters = (filters) ->
 			continue
 		str = filter["name"]
 		params = filter["params"] or {}
-		for k, v in pairs params
-			str = str .. ":#{k}=%#{string.len(v)}%#{v}"
+		if str == "lavfi" or str\match("^lavfi%-")
+			str = serialize_lavfi_filter(filter)
+		else
+			for k, v in pairs params
+				str = str .. ":#{k}=#{quote_filter_param(v)}"
 		append(filters, {str})
 
 get_video_filters = (format, region) ->
@@ -275,7 +318,22 @@ find_path = (startTime, endTime) ->
 
 	return path, is_stream, is_temporary, startTime, endTime
 
-encode = (region, startTime, endTime, attempt, overrideCrf, lastSize, target) ->
+-- Probe the same executable before entering any launch mode (including the
+-- progress shell and detached mode, which otherwise hide spawn failures).
+check_encoder = ->
+    result = utils.subprocess({args: {"mpv", "--no-config", "--version"}, cancellable: false})
+    if result.status == 0
+        return true
+    explanation = "Cannot start the mpv encoder. Add the folder containing mpv to PATH, then restart the player. See README: Encoder executable."
+    if result.status and result.status > 0
+        explanation = "The mpv encoder failed its startup check. Run mpv --version and check the logs for details."
+    msg.error(explanation)
+    msg.error("Encoder startup check: ", result.error or "", result.stderr or "", result.stdout or "")
+    message(explanation, 10)
+    emit_event("encode-finished", "fail", explanation)
+    return false
+
+encode = (region, startTime, endTime, onDone, attempt, overrideCrf, lastSize, target) ->
 	format = formats[options.output_format]
 
 	originalStartTime = startTime
@@ -283,6 +341,7 @@ encode = (region, startTime, endTime, attempt, overrideCrf, lastSize, target) ->
 	path, is_stream, is_temporary, startTime, endTime = find_path(startTime, endTime) 
 	if not path
 		message("No file is being played")
+		onDone(false) if onDone
 		return
 
 	command = {
@@ -390,7 +449,7 @@ encode = (region, startTime, endTime, attempt, overrideCrf, lastSize, target) ->
 	if options.output_directory != ""
 		dir = parse_directory(options.output_directory)
 
-	formatted_filename = format_filename(originalStartTime, originalEndTime, format)
+	formatted_filename = format_filename(originalStartTime, originalEndTime, format, dir)
 	out_path = utils.join_path(dir, formatted_filename)
 	append(command, {"--o=#{out_path}"})
 
@@ -418,6 +477,7 @@ encode = (region, startTime, endTime, attempt, overrideCrf, lastSize, target) ->
 		if not res
 			message("First pass failed! Check the logs for details.")
 			emit_event("encode-finished", "fail")
+			onDone(false) if onDone
 
 			return
 		
@@ -436,7 +496,7 @@ encode = (region, startTime, endTime, attempt, overrideCrf, lastSize, target) ->
 	msg.info("Encoding to", out_path)
 	msg.verbose("Command line:", table.concat(command, " "))
 
-	if options.run_detached
+	if options.run_detached and not onDone
 		message("Started encode, process was detached.")
 		utils.subprocess_detached({args: command})
 	else
@@ -452,22 +512,30 @@ encode = (region, startTime, endTime, attempt, overrideCrf, lastSize, target) ->
 			emit_event("encode-finished", "success")
 			if options.completion_command != ""
 				mp.command(options.completion_command\gsub("%%{output}", out_path))
+			onDone(true, out_path) if onDone
 		else
 			message("Encode failed! Check the logs for details.")
 			emit_event("encode-finished", "fail")
+			onDone(false) if onDone
 
 		
 		-- Clean up pass log file.
 		os.remove(get_pass_logfile_path(out_path))
+		os.remove "x264_2pass.log"
+		os.remove "x264_2pass.log.mbtree"
 		if is_temporary
 			os.remove(path)
 		
 		return res
 
-encodeWithTarget = (region, startTime, endTime) ->
+encodeWithTarget = (region, startTime, endTime, onDone) ->
 	attempt = 1
 	format = formats[options.output_format]
 	crf = options.crf
+
+	if not check_encoder!
+		onDone(false) if onDone
+		return
 
 	if options.multiple_attempts and not options.strict_filesize_constraint and format.acceptsBitrate and options.target_filesize > 0 and crf >= 0
 		originalStartTime = startTime
@@ -491,13 +559,14 @@ encodeWithTarget = (region, startTime, endTime) ->
 		res = false
 
 		while attempt <= 63
-			res = encode(region, startTime, endTime, attempt, crf, lastSize, target)
+			res = encode(region, startTime, endTime, nil, attempt, crf, lastSize, target)
 
 			if res and crf < 63
 				file = assert(io.open(out_path, "r"))
 				size = file\seek("end")
 				file\close!
 				if size <= target
+				  onDone(true, out_path) if onDone
 					return res
 
 				delta = 1
@@ -512,6 +581,7 @@ encodeWithTarget = (region, startTime, endTime) ->
 
 					if options.abort_factor > 1 and ratio >= options.abort_factor
 						message("Aborted!\\NFilesize: #{size}\\NTarget: #{target}\\NRatio: #{ratio}\\NSaved to\\N#{bold(out_path)}")
+						onDone(false) if onDone
 						return res
 
 					-- If ratio <= 1.1 then just use delta of 1
@@ -526,8 +596,15 @@ encodeWithTarget = (region, startTime, endTime) ->
 				crf = math.min(crf + delta, 63)
 				lastSize = size
 			else
+			  onDone(false) if onDone
 				return res
 			attempt = attempt + 1
+		onDone(false) if onDone
 		return res
 	else
-		return encode(region, startTime, endTime, 0)
+		res = encode(region, startTime, endTime, nil, 0)
+		if res
+			onDone(true, out_path) if onDone
+		else
+			onDone(false) if onDone
+		return res
