@@ -9,8 +9,13 @@ class UploadWithProgress extends Page
 		_, @filename = utils.split_path(path)
 		info = utils.file_info(path)
 		@sizeText = info and string.format("%.1f MB", info.size / 1000000) or "unknown size"
-		@responsePath = os.tmpname()
-		@progressPath = os.tmpname()
+		if is_windows
+			tempDir = os.getenv("TMP") or os.getenv("TEMP")
+			@responsePath = tempDir .. "\\" .. os.tmpname()
+			@progressPath = tempDir .. "\\" .. os.tmpname()
+		else
+			@responsePath = os.tmpname()
+			@progressPath = os.tmpname()
 		@state = "uploading"
 		@percent = 0
 		@finished = false

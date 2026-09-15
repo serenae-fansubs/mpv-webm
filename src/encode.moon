@@ -341,7 +341,8 @@ encode = (region, startTime, endTime, onDone, attempt, overrideCrf, lastSize, ta
 	path, is_stream, is_temporary, startTime, endTime = find_path(startTime, endTime) 
 	if not path
 		message("No file is being played")
-		onDone(false) if onDone
+		if onDone
+			onDone(false)
 		return
 
 	command = {
@@ -477,7 +478,8 @@ encode = (region, startTime, endTime, onDone, attempt, overrideCrf, lastSize, ta
 		if not res
 			message("First pass failed! Check the logs for details.")
 			emit_event("encode-finished", "fail")
-			onDone(false) if onDone
+			if onDone
+				onDone(false)
 
 			return
 		
@@ -512,11 +514,13 @@ encode = (region, startTime, endTime, onDone, attempt, overrideCrf, lastSize, ta
 			emit_event("encode-finished", "success")
 			if options.completion_command != ""
 				mp.command(options.completion_command\gsub("%%{output}", out_path))
-			onDone(true, out_path) if onDone
+			if onDone
+				onDone(true, out_path)
 		else
 			message("Encode failed! Check the logs for details.")
 			emit_event("encode-finished", "fail")
-			onDone(false) if onDone
+			if onDone
+				onDone(false)
 
 		
 		-- Clean up pass log file.
@@ -534,7 +538,8 @@ encodeWithTarget = (region, startTime, endTime, onDone) ->
 	crf = options.crf
 
 	if not check_encoder!
-		onDone(false) if onDone
+		if onDone
+			onDone(false)
 		return
 
 	if options.multiple_attempts and not options.strict_filesize_constraint and format.acceptsBitrate and options.target_filesize > 0 and crf >= 0
@@ -566,7 +571,8 @@ encodeWithTarget = (region, startTime, endTime, onDone) ->
 				size = file\seek("end")
 				file\close!
 				if size <= target
-				  onDone(true, out_path) if onDone
+					if onDone
+				  	onDone(true, out_path)
 					return res
 
 				delta = 1
@@ -581,7 +587,8 @@ encodeWithTarget = (region, startTime, endTime, onDone) ->
 
 					if options.abort_factor > 1 and ratio >= options.abort_factor
 						message("Aborted!\\NFilesize: #{size}\\NTarget: #{target}\\NRatio: #{ratio}\\NSaved to\\N#{bold(out_path)}")
-						onDone(false) if onDone
+						if onDone
+							onDone(false)
 						return res
 
 					-- If ratio <= 1.1 then just use delta of 1
@@ -596,15 +603,18 @@ encodeWithTarget = (region, startTime, endTime, onDone) ->
 				crf = math.min(crf + delta, 63)
 				lastSize = size
 			else
-			  onDone(false) if onDone
+				if onDone
+					onDone(false)
 				return res
 			attempt = attempt + 1
-		onDone(false) if onDone
+		if onDone
+			onDone(false)
 		return res
 	else
 		res = encode(region, startTime, endTime, nil, 0)
-		if res
-			onDone(true, out_path) if onDone
-		else
-			onDone(false) if onDone
+		if onDone
+			if res
+				onDone(true, out_path)
+			else
+				onDone(false)
 		return res

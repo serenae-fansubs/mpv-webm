@@ -73,6 +73,13 @@ copy_to_clipboard = (text) ->
 	ok, written = pcall(() -> mp.set_property("clipboard/text", text))
 	return true if ok and written
 
+	if is_windows
+		pipe = io.popen("clip", "w")
+		if pipe != nil
+			pipe\write(text)
+			if pipe\close()
+				return true
+
 	candidates = {}
 	if is_windows
 		candidates = {{"clip"}}
